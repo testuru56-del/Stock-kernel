@@ -1,0 +1,134 @@
+name: Build Pure Stock Kernel - Poco M4 5G
+
+on:
+  workflow_dispatch:
+    inputs:
+      boot_url:
+        description: 'Direct link to your Stock boot.img'
+        required: true
+        default: ''
+
+jobs:
+  build:
+    name: Build Unmodified Kernel
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    steps:
+
+    # ── 1. Dependencies ─────────────────────────────────────────────────────
+    - name: Install build tools
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y \
+          git make bc bison flex cpio zip unzip curl wget python3 \
+          libssl-dev libelf-dev \
+          clang lld llvm \
+          gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
+          binutils-aarch64-linux-gnu
+
+    # ── 2. Clone kernel source ───────────────────────────────────────────────
+    - name: Clone light-u-oss kernel source
+      run: |
+        echo "Cloning Xiaomi kernel source (light-u-oss)..."
+        git clone --depth=1 \
+          -b light-u-oss \
+          https://github.com/MiCode/Xiaomi_Kernel_OpenSource \
+          kernel
+
+    # ── 3. Set Config ───────────────────────────────────────────────────────
+    - name: Set defconfig
+      working-directory: kernel
+      run: |
+        DEFCONFIG="light_defconfig"
+        echo "DEFCONFIG=$DEFCONFIG" >> $GITHUB_ENV
+
+    # ── 4. Apply ONLY Essential Compiler Fixes (NO Features Modified) ────────
+    - name: Essential Compiler Fixes
+      working-directory: kernel
+      run: |
+        CFG="arch/arm64/configs/$DEFCONFIG"
+
+        # 1. Bypass missing MIHW folder (Xiaomi forgot to include it in source)
+        mkdir -p drivers/mihw
+        echo "" > drivers/mihw/Makefile
+        sed -i 's/obj-$(CONFIG_MI_HARDWARE) += mihw.o//g' drivers/Makefile || true
+
+        # 2. Disable Module Signing to prevent OpenSSL 3.0 extract-cert crashes
+        sed -i 's/CONFIG_MODULE_SIG=y/# CONFIG_MODULE_SIG is not set/g' "$CFG" || true
+        sed -i 's/CONFIG_MODULE_SIG_ALL=y/# CONFIG_MODULE_SIG_ALL is not set/g' "$CFG" || true
+        sed -i 's/CONFIG_SYSTEM_TRUSTED_KEYS.*/CONFIG_SYSTEM_TRUSTED_KEYS=""/g' "$CFG" || true
+        sed -i 's/CONFIG_SYSTEM_REVOCATION_KEYS.*/CONFIG_SYSTEM_REVOCATION_KEYS=""/g' "$CFG" || true
+
+        # NOTE: NO touch drivers are being modified here.
+        # NO vermagic bypass is being applied.
+        # This is pure stock configuration.
+
+    # ── 5. Build kernel ──────────────────────────────────────────────────────
+    - name: Build Stock-like Kernel
+      working-directory: kernel
+      run: |
+        export ARCH=arm64
+        export SUBARCH=arm64
+        export CC=clang
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+        export LLVM=1
+        export LLVM_IAS=1
+        
+        export HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
+        export HOSTCXXFLAGS="-fcommon -Wno-deprecated-declarations"
+        export KBUILD_HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
+
+        make O=out ARCH=arm64 $DEFCONFIG
+        yes "" | make O=out ARCH=arm64 oldconfig
+
+        echo "Building pure stock kernel..."
+        make O=out ARCH=arm64 \
+          CC=clang \
+          CROSS_COMPILE=aarch64-linux-gnu- \
+          CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+          LLVM=1 LLVM_IAS=1 \
+          KCFLAGS="-Wno-error -Wno-unused-but-set-variable -Wno-pointer-to-int-cast -Wno-unused-variable -Wno-strict-prototypes" \
+          -j$(nproc) Image.gz dtbs
+
+    # ── 6. Get magiskboot + Stock Boot ───────────────────────────────────────
+    - name: Download magiskboot and Stock Boot
+      run: |
+        curl -s https://api.github.com/repos/topjohnwu/Magisk/releases/latest \
+          | grep "browser_download_url" \
+          | grep "Magisk-v.*\.apk" \
+          | head -1 | cut -d'"' -f4 | xargs curl -fL -o Magisk.apk
+
+        unzip -p Magisk.apk lib/x86_64/libmagiskboot.so > magiskboot
+        chmod +x magiskboot
+
+        echo "Downloading Stock Boot Image..."
+        curl -fL -o boot.img "${{ github.event.inputs.boot_url }}"
+
+    # ── 7. Repack ────────────────────────────────────────────────────────────
+    - name: Repack Stock Boot with Compiled Kernel
+      run: |
+        mkdir work && cd work
+        ../magiskboot unpack ../boot.img
+
+        cd ..
+        KIMG="kernel/out/arch/arm64/boot/Image.gz"
+        if [ ! -f "$KIMG" ]; then
+          echo "ERROR: No kernel image built!"
+          exit 1
+        fi
+        cp "$KIMG" work/kernel
+
+        # We keep the original DTB from your boot.img to prevent bootloops
+        cd work
+        ../magiskboot repack ../boot.img
+        mv new-boot.img ../stock_repacked_boot.img
+
+    # ── 8. Upload artifact ───────────────────────────────────────────────────
+    - name: Upload Repacked Boot Image
+      uses: actions/upload-artifact@v4
+      with:
+        name: pure-stock-compiled-boot
+        path: stock_repacked_boot.img
+        retention-days: 5

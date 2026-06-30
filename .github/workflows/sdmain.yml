@@ -8,65 +8,61 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Install packages
         run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip file curl
+          sudo apt update
+          sudo apt install -y wget unzip file
 
-      - name: Download Magisk
+      - name: Download magiskboot
         run: |
-          curl -L https://github.com/topjohnwu/Magisk/releases/latest/download/Magisk-v29.0.apk -o Magisk.apk
-          unzip -p Magisk.apk lib/x86_64/libmagiskboot.so > magiskboot
+          wget -O magiskboot https://github.com/Uevo001/magiskboot-linux/releases/latest/download/magiskboot-x86_64
           chmod +x magiskboot
+          ./magiskboot --help || true
 
-      - name: Verify Input Files
+      - name: Verify files
         run: |
-          echo "===== Files ====="
           ls -lh
-          echo
           file boot.img
           file Image.gz
 
-      - name: Unpack Boot
+      - name: Unpack boot.img
         run: |
           mkdir work
+          cp boot.img work/
+          cp Image.gz work/
+          cp magiskboot work/
+
           cd work
-          ../magiskboot unpack ../boot.img || true
 
-          echo "==============================="
-          echo "UNPACKED FILES"
-          echo "==============================="
+          ./magiskboot unpack boot.img
+
+          echo "===== UNPACK RESULT ====="
           ls -lah
-
-          echo "==============================="
-          echo "FILE TYPES"
-          echo "==============================="
           file *
 
-      - name: Replace Kernel
-        run: |
-          echo "Replacing kernel..."
-          cp Image.gz work/kernel || true
-
-          echo "After replacement:"
-          ls -lah work
-
-      - name: Repack Boot
+      - name: Replace kernel
         run: |
           cd work
-          ../magiskboot repack ../boot.img || true
+          cp Image.gz kernel
 
-          echo "==============================="
-          echo "OUTPUT FILES"
-          echo "==============================="
+      - name: Repack boot.img
+        run: |
+          cd work
+          ./magiskboot repack boot.img
+
+      - name: List output
+        run: |
+          cd work
           ls -lah
 
-      - name: Upload Artifacts
+      - name: Upload boot
         uses: actions/upload-artifact@v4
         with:
-          name: Boot-Repack
+          name: patched_boot
           path: |
+            work/new-boot.img
+            work/kernel
+            work/header
             work/*

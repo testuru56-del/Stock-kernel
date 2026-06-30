@@ -1,0 +1,72 @@
+name: Repack Boot Image
+
+on:
+  workflow_dispatch:
+
+jobs:
+  repack:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip file curl
+
+      - name: Download Magisk
+        run: |
+          curl -L https://github.com/topjohnwu/Magisk/releases/latest/download/Magisk-v29.0.apk -o Magisk.apk
+          unzip -p Magisk.apk lib/x86_64/libmagiskboot.so > magiskboot
+          chmod +x magiskboot
+
+      - name: Verify Input Files
+        run: |
+          echo "===== Files ====="
+          ls -lh
+          echo
+          file boot.img
+          file Image.gz
+
+      - name: Unpack Boot
+        run: |
+          mkdir work
+          cd work
+          ../magiskboot unpack ../boot.img || true
+
+          echo "==============================="
+          echo "UNPACKED FILES"
+          echo "==============================="
+          ls -lah
+
+          echo "==============================="
+          echo "FILE TYPES"
+          echo "==============================="
+          file *
+
+      - name: Replace Kernel
+        run: |
+          echo "Replacing kernel..."
+          cp Image.gz work/kernel || true
+
+          echo "After replacement:"
+          ls -lah work
+
+      - name: Repack Boot
+        run: |
+          cd work
+          ../magiskboot repack ../boot.img || true
+
+          echo "==============================="
+          echo "OUTPUT FILES"
+          echo "==============================="
+          ls -lah
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Boot-Repack
+          path: |
+            work/*

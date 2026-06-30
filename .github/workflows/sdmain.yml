@@ -1,4 +1,4 @@
-name: Repack Boot Image
+name: Repack Boot
 
 on:
   workflow_dispatch:
@@ -10,24 +10,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install packages
+      - name: Install tools
         run: |
           sudo apt update
           sudo apt install -y wget unzip file
 
-      - name: Download magiskboot
+      - name: Download files
         run: |
-          wget -O magiskboot https://github.com/Uevo001/magiskboot-linux/releases/latest/download/magiskboot-x86_64
-          chmod +x magiskboot
-          ./magiskboot --help || true
+          wget -O boot.img https://github.com/USERNAME/REPO/releases/download/boot/boot.img
+          wget -O Image.gz https://github.com/USERNAME/REPO/releases/download/boot/Image.gz
 
-      - name: Verify files
+      - name: Verify
         run: |
-          ls -lh
           file boot.img
           file Image.gz
+          ls -lh
 
-      - name: Unpack boot.img
+      - name: Download Magisk APK
+        run: |
+          wget -O Magisk.apk https://github.com/topjohnwu/Magisk/releases/download/v29.0/Magisk-v29.0.apk
+          unzip -p Magisk.apk lib/x86_64/libmagiskboot.so > magiskboot
+          chmod +x magiskboot
+
+      - name: Unpack
         run: |
           mkdir work
           cp boot.img work/
@@ -35,34 +40,22 @@ jobs:
           cp magiskboot work/
 
           cd work
-
           ./magiskboot unpack boot.img
 
-          echo "===== UNPACK RESULT ====="
           ls -lah
           file *
 
-      - name: Replace kernel
+      - name: Replace Kernel
         run: |
-          cd work
-          cp Image.gz kernel
+          cp Image.gz work/kernel
 
-      - name: Repack boot.img
+      - name: Repack
         run: |
           cd work
           ./magiskboot repack boot.img
 
-      - name: List output
-        run: |
-          cd work
-          ls -lah
-
-      - name: Upload boot
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: patched_boot
-          path: |
-            work/new-boot.img
-            work/kernel
-            work/header
-            work/*
+          path: work/new-boot.img

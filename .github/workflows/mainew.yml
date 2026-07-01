@@ -74,7 +74,6 @@ jobs:
         wget \
         -O boot.img \
         https://github.com/testuru56-del/Stock-kernel/releases/download/Boot/boot.img
-
   
     - name: Download Official Magisk
       run: |
@@ -147,7 +146,7 @@ jobs:
         O=out \
         Image.gz \
         dtbs
-       - name: Verify Build
+    - name: Verify Build
       run: |
         ls -lah kernel/out/arch/arm64/boot/
 
@@ -202,7 +201,7 @@ jobs:
         fi
 
         mv new-boot.img ../stock_boot_test.img
-        - name: Save Build Information
+    - name: Save Build Information
       run: |
         mkdir -p artifacts
 

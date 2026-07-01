@@ -9,197 +9,192 @@ jobs:
     timeout-minutes: 120
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Checkout
-      uses: actions/checkout@v4
-
-    - name: Install build tools
-      run: |
-        sudo apt-get update -qq
-
-        sudo apt-get install -y \
-        git \
-        make \
-        bc \
-        bison \
-        flex \
-        cpio \
-        zip \
-        unzip \
-        curl \
-        wget \
-        python3 \
-        libssl-dev \
-        libelf-dev \
-        clang \
-        lld \
-        llvm \
-        gcc-aarch64-linux-gnu \
-        gcc-arm-linux-gnueabi \
-        binutils-aarch64-linux-gnu
-
-    - name: Clone Xiaomi Kernel Source
-      run: |
-        git clone --depth=1 \
-        -b light-u-oss \
-        https://github.com/MiCode/Xiaomi_Kernel_OpenSource \
-        kernel
-
-        du -sh kernel
-
-    - name: Download Stock Boot
-      run: |
-        wget -O boot.img \
-        https://github.com/testuru56-del/Stock-kernel/releases/download/Boot/boot.img
-
-    - name: Download magiskboot
-      run: |
-        wget -O magiskboot \
-        https://github.com/testuru56-del/Stock-kernel/releases/download/Boot/magiskboot
-
-        chmod +x magiskboot
-
-        ./magiskboot || true
-    - name: Set defconfig
-      working-directory: kernel
-      run: |
-        DEFCONFIG="light_defconfig"
-
-        echo "========================================="
-        echo "Using DEFCONFIG: $DEFCONFIG"
-        echo "========================================="
-
-        echo "DEFCONFIG=$DEFCONFIG" >> $GITHUB_ENV
-
-    - name: Apply Compile Fixes
-      working-directory: kernel
-      run: |
-        CFG="arch/arm64/configs/$DEFCONFIG"
-
-        echo ">>> Fix 1: Missing mihw"
-        mkdir -p drivers/mihw
-        echo "" > drivers/mihw/Makefile
-        sed -i 's/obj-$(CONFIG_MI_HARDWARE) += mihw.o//g' drivers/Makefile || true
-
-        echo "Done."
-    - name: Generate Config
-      working-directory: kernel         
-      run: |
-       export ARCH=arm64
-       export SUBARCH=arm64
-
-       make O=out light_defconfig
-
-       yes "" | make O=out olddefconfig
-       - name: Build Kernel
-         working-directory: kernel
+      - name: Install Build Tools
         run: |
-        export ARCH=arm64
-        export SUBARCH=arm64
+          sudo apt-get update
+          sudo apt-get install -y \
+            git \
+            make \
+            bc \
+            bison \
+            flex \
+            cpio \
+            zip \
+            unzip \
+            curl \
+            wget \
+            python3 \
+            libssl-dev \
+            libelf-dev \
+            clang \
+            llvm \
+            lld \
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabi \
+            binutils-aarch64-linux-gnu
 
-        export CC=clang
-        export CROSS_COMPILE=aarch64-linux-gnu-
-        export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+      - name: Clone Xiaomi Kernel
+        run: |
+          git clone --depth=1 \
+            -b light-u-oss \
+            https://github.com/MiCode/Xiaomi_Kernel_OpenSource \
+            kernel
 
-        export LLVM=1
-        export LLVM_IAS=1
+      - name: Download boot.img
+        run: |
+          wget -O boot.img \
+          https://github.com/testuru56-del/Stock-kernel/releases/download/Boot/boot.img
 
-        export HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
-        export HOSTCXXFLAGS="-fcommon -Wno-deprecated-declarations"
-        export KBUILD_HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
+      - name: Download magiskboot
+        run: |
+          wget -O magiskboot \
+          https://github.com/testuru56-del/Stock-kernel/releases/download/Boot/magiskboot
 
-        echo "Building kernel..."
+          chmod +x magiskboot
+          ./magiskboot --help || true
 
-        make -C . O=out ARCH=arm64 \
-        CC=clang \
-        CROSS_COMPILE=aarch64-linux-gnu- \
-        CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-        LLVM=1 \
-        LLVM_IAS=1 \
-        KCFLAGS="-Wno-error -Wno-unused-but-set-variable -Wno-pointer-to-int-cast -Wno-unused-variable -Wno-strict-prototypes" \
-        -j$(nproc) \
-        Image.gz \
-        dtbs
+      - name: Set Defconfig
+        working-directory: kernel
+        run: |
+          echo "DEFCONFIG=light_defconfig" >> $GITHUB_ENV
+      - name: Apply Compile Fixes
+        working-directory: kernel
+        run: |
+          CFG="arch/arm64/configs/light_defconfig"
 
-        echo "Kernel output:"
-        ls -lh out/arch/arm64/boot/
+          echo "Fixing missing mihw..."
+          mkdir -p drivers/mihw
+          touch drivers/mihw/Makefile
 
-    - name: Upload Raw Kernel
-      uses: actions/upload-artifact@v4
-      with:
-        name: compiled-stock-kernel
-        path: |
-          kernel/out/arch/arm64/boot/Image*
-          kernel/out/arch/arm64/boot/dtb*
-        retention-days: 5
+          sed -i 's/obj-$(CONFIG_MI_HARDWARE) += mihw.o//g' drivers/Makefile || true
 
-    - name: Verify Kernel
-      run: |
-        if [ ! -f kernel/out/arch/arm64/boot/Image.gz ]; then
-          echo "ERROR: Image.gz not found!"
-          exit 1
-        fi
+      - name: Generate Config
+        working-directory: kernel
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
 
-        file kernel/out/arch/arm64/boot/Image.gz
-        ls -lh kernel/out/arch/arm64/boot/
-    - name: Repack Stock Boot
-      run: |
-        mkdir work
-        cd work
+          make O=out light_defconfig
 
-        ../magiskboot unpack ../boot.img
+          yes "" | make O=out olddefconfig
 
-        cd ..
+      - name: Show Config
+        working-directory: kernel
+        run: |
+          echo "Kernel config generated successfully."
+          ls -lh out/.config    
+      - name: Build kernel
+        working-directory: kernel
+        run: |
+         export ARCH=arm64
+         export SUBARCH=arm64
+         export CC=clang
+         export CROSS_COMPILE=aarch64-linux-gnu-
+         export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+         export LLVM=1
+         export LLVM_IAS=1
 
-        KIMG=""
+         export HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
+         export HOSTCXXFLAGS="-fcommon -Wno-deprecated-declarations"
+         export KBUILD_HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
+         
+         echo "Building kernel..."
+         make O=out ARCH=arm64 \
+         CC=clang \
+         CROSS_COMPILE=aarch64-linux-gnu- \
+         CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+         LLVM=1 LLVM_IAS=1 \
+         KCFLAGS="-Wno-error -Wno-unused-but-set-variable -Wno-pointer-to-int-cast -Wno-unused-variable -Wno-strict-prototypes" \
+         -j$(nproc) \
+         Image.gz dtbs
 
-        for f in \
-        kernel/out/arch/arm64/boot/Image.gz-dtb \
-        kernel/out/arch/arm64/boot/Image-dtb \
-        kernel/out/arch/arm64/boot/Image.gz \
-        kernel/out/arch/arm64/boot/Image
-        do
-          if [ -f "$f" ]; then
-            KIMG="$f"
-            break
+         ls -lh out/arch/arm64/boot/
+
+      - name: Verify Build
+        working-directory: kernel
+        run: |
+          ls -lah out/arch/arm64/boot/
+
+          test -f out/arch/arm64/boot/Image.gz
+
+          file out/arch/arm64/boot/Image.gz
+
+      - name: Upload Raw Kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-kernel
+          path: |
+            kernel/out/arch/arm64/boot/Image*
+            kernel/out/arch/arm64/boot/dtb*
+          retention-days: 5    
+          
+      - name: Repack Stock Boot
+        run: |
+          mkdir work
+          cp boot.img work/
+          cp magiskboot work/
+
+          cd work
+
+          ../magiskboot unpack boot.img
+
+          cd ..
+
+          KIMG=""
+
+          for f in \
+            kernel/out/arch/arm64/boot/Image.gz-dtb \
+            kernel/out/arch/arm64/boot/Image-dtb \
+            kernel/out/arch/arm64/boot/Image.gz \
+            kernel/out/arch/arm64/boot/Image
+          do
+            if [ -f "$f" ]; then
+              KIMG="$f"
+              break
+            fi
+          done
+
+          if [ -z "$KIMG" ]; then
+            echo "ERROR: Kernel image not found!"
+            exit 1
           fi
-        done
 
-        if [ -z "$KIMG" ]; then
-          echo "ERROR: No kernel image found!"
-          exit 1
-        fi
+          echo "Using kernel: $KIMG"
 
-        echo "Using: $KIMG"
+          cp "$KIMG" work/kernel
 
-        cp "$KIMG" work/kernel
+          if [ -f kernel/out/arch/arm64/boot/dtb.img ]; then
+            cp kernel/out/arch/arm64/boot/dtb.img work/dtb
+            echo "DTB replaced."
+          fi
 
-        if [ -f kernel/out/arch/arm64/boot/dtb.img ]; then
-          cp kernel/out/arch/arm64/boot/dtb.img work/dtb
-          echo "Replacing DTB"
-        fi
+          cd work
 
-        cd work
+          ../magiskboot repack boot.img
 
-        ../magiskboot repack ../boot.img
+          if [ ! -f new-boot.img ]; then
+            echo "Repack failed!"
+            exit 1
+          fi
 
-        mv new-boot.img ../patched_boot.img
+          mv new-boot.img ../patched_boot.img
 
-    - name: Verify Output
-      run: |
-        ls -lh
+      - name: Verify Patched Boot
+        run: |
+          ls -lh
+          file patched_boot.img
+          sha256sum patched_boot.img
 
-        file patched_boot.img
-
-        sha256sum patched_boot.img
-
-    - name: Upload Boot
-      uses: actions/upload-artifact@v4
-      with:
-        name: Poco-M4-Stock-Boot
-        path: |
-          patched_boot.img
-          kernel/out/.config
-          kernel/out/arch/arm64/boot/Image*
-          kernel/out/arch/arm64/boot/dtb*
-        retention-days: 7
+      - name: Upload Patched Boot
+        uses: actions/upload-artifact@v4
+        with:
+          name: patched-stock-boot
+          path: |
+            patched_boot.img
+            kernel/out/.config
+            kernel/out/arch/arm64/boot/Image*
+            kernel/out/arch/arm64/boot/dtb*
+          retention-days: 7     

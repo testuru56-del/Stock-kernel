@@ -63,13 +63,15 @@ jobs:
       - name: Apply Compile Fixes
         working-directory: kernel
         run: |
-          CFG="arch/arm64/configs/light_defconfig"
+         mkdir -p vendor/xiaomi/kernel_modules/mihw
 
-          echo "Fixing missing mihw..."
-          mkdir -p drivers/mihw
-          touch drivers/mihw/Makefile
+         cat > vendor/xiaomi/kernel_modules/mihw/Makefile << 'EOF'
+         obj-y :=
+         EOF
 
-          sed -i 's/obj-$(CONFIG_MI_HARDWARE) += mihw.o//g' drivers/Makefile || true
+         sed -i '/vendor\/xiaomi\/kernel_modules\/mihw/d' drivers/mihw/Makefile || true
+
+         sed -i 's/obj-$(CONFIG_MI_HARDWARE) += mihw.o//g' drivers/Makefile || true
 
       - name: Generate Config
         working-directory: kernel

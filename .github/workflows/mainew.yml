@@ -93,8 +93,8 @@ jobs:
          sed -i 's/obj-y += focaltech_test/# obj-y += focaltech_test/' \
          drivers/input/touchscreen/mediatek/FT8722/Makefile || true  
       - name: Disable Novatek MP Test
-       working-directory: kernel
-       run: |
+        working-directory: kernel
+        run: |
            sed -i 's/obj-y += nt36xxx_mp_ctrlram.o/# obj-y += nt36xxx_mp_ctrlram.o/' \
            drivers/input/touchscreen/mediatek/NT36672C/Makefile || true
 

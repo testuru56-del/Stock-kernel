@@ -91,7 +91,15 @@ jobs:
         working-directory: kernel
         run: |
          sed -i 's/obj-y += focaltech_test/# obj-y += focaltech_test/' \
-         drivers/input/touchscreen/mediatek/FT8722/Makefile || true    
+         drivers/input/touchscreen/mediatek/FT8722/Makefile || true  
+      - name: Disable Novatek MP Test
+       working-directory: kernel
+       run: |
+           sed -i 's/obj-y += nt36xxx_mp_ctrlram.o/# obj-y += nt36xxx_mp_ctrlram.o/' \
+           drivers/input/touchscreen/mediatek/NT36672C/Makefile || true
+
+           sed -i 's/obj-y += nt36xxx_mp_ctrlram/# obj-y += nt36xxx_mp_ctrlram/' \
+           drivers/input/touchscreen/mediatek/NT36672C/Makefile || true   
       - name: Build kernel
         working-directory: kernel
         run: |
@@ -113,7 +121,12 @@ jobs:
          CROSS_COMPILE=aarch64-linux-gnu- \
          CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
          LLVM=1 LLVM_IAS=1 \
-         KCFLAGS="-Wno-error -Wno-unused-but-set-variable -Wno-pointer-to-int-cast -Wno-unused-variable -Wno-strict-prototypes" \
+         KCFLAGS="-Wno-error \
+         -Wno-frame-larger-than \
+         -Wno-unused-but-set-variable \
+         -Wno-pointer-to-int-cast \
+         -Wno-unused-variable \
+         -Wno-strict-prototypes"
          -j$(nproc) \
          Image.gz dtbs
 

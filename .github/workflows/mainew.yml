@@ -75,13 +75,16 @@ jobs:
         -O boot.img \
         https://github.com/testuru56-del/Stock-kernel/releases/download/Boot/boot.img
   
-    - name: Download Official Magisk
+    - name: Download magiskboot
       run: |
-        curl -L https://github.com/topjohnwu/Magisk/releases/latest/download/Magisk.apk -o Magisk.apk
+       wget -O magiskboot \
+       https://github.com/testuru56-del/Stock-kernel/releases/download/Boot/magiskboot
 
-        unzip -p Magisk.apk lib/x86_64/libmagiskboot.so > magiskboot
+       chmod +x magiskboot
 
-        chmod +x magiskboot
+       file magiskboot
+
+       ./magiskboot --help || true
     - name: Fix Xiaomi Source
       run: |
         cd kernel

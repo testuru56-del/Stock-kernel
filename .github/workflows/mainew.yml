@@ -86,14 +86,14 @@ jobs:
         echo "Done."
 
     - name: Generate Config
-      working-directory: kernel
-      run: |
+     working-directory: kernel         
+     run: |
         export ARCH=arm64
+        export SUBARCH=arm64
 
-        make O=out ARCH=arm64 $DEFCONFIG
+        make O=out light_defconfig
 
-        echo "Auto-answering new config questions..."
-        yes "" | make O=out ARCH=arm64 oldconfig || true
+        yes "" | make O=out olddefconfig
         - name: Build Kernel
          working-directory: kernel
         run: |

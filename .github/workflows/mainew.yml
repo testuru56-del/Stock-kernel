@@ -116,24 +116,20 @@ jobs:
          export HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
          export HOSTCXXFLAGS="-fcommon -Wno-deprecated-declarations"
          export KBUILD_HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
-         
          echo "Building kernel..."
-         make O=out ARCH=arm64 \
+
+         make O=out \
+         ARCH=arm64 \
          CC=clang \
          CROSS_COMPILE=aarch64-linux-gnu- \
          CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-         LLVM=1 LLVM_IAS=1 \
-         KCFLAGS="-Wno-error \
-         -Wno-frame-larger-than \
-         -Wno-unused-but-set-variable \
-         -Wno-pointer-to-int-cast \
-         -Wno-unused-variable \
-         -Wno-strict-prototypes"
-         -j$(nproc) \
-         Image.gz dtbs
+         LLVM=1 \
+         LLVM_IAS=1 \
+         KCFLAGS="-Wno-error -Wno-frame-larger-than -Wno-unused-but-set-variable -Wno-pointer-to-int-cast -Wno-unused-variable -Wno-strict-prototypes" \
+         Image.gz dtbs \
+         -j$(nproc)
 
          ls -lh out/arch/arm64/boot/
-
       - name: Verify Build
         working-directory: kernel
         run: |

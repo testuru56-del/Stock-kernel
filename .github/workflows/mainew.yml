@@ -93,7 +93,7 @@ jobs:
         make O=out ARCH=arm64 $DEFCONFIG
 
         echo "Auto-answering new config questions..."
-        yes "" | make O=out ARCH=arm64 oldconfig
+        yes "" | make O=out ARCH=arm64 oldconfig || true
         - name: Build Kernel
          working-directory: kernel
         run: |
@@ -114,18 +114,15 @@ jobs:
         echo "Building kernel..."
 
         make O=out ARCH=arm64 \
-          CC=clang \
-          CROSS_COMPILE=aarch64-linux-gnu- \
-          CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-          LLVM=1 LLVM_IAS=1 \
-          KCFLAGS="-Wno-error \
-          -Wno-unused-but-set-variable \
-          -Wno-pointer-to-int-cast \
-          -Wno-unused-variable \
-          -Wno-strict-prototypes" \
-          -j$(nproc) \
-          Image.gz \
-          dtbs
+        CC=clang \
+        CROSS_COMPILE=aarch64-linux-gnu- \
+        CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+        LLVM=1 \
+        LLVM_IAS=1 \
+        KCFLAGS="-Wno-error -Wno-unused-but-set-variable -Wno-pointer-to-int-cast -Wno-unused-variable -Wno-strict-prototypes" \
+        -j$(nproc) \
+        Image.gz \
+        dtbs
 
         echo "Kernel output:"
         ls -lh out/arch/arm64/boot/

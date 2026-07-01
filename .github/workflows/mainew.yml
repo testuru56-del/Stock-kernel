@@ -81,11 +81,7 @@ jobs:
         echo "" > drivers/mihw/Makefile
         sed -i 's/obj-$(CONFIG_MI_HARDWARE) += mihw.o//g' drivers/Makefile || true
 
-        echo ">>> Fix 2: Disable module signing (compile only)"
-        sed -i 's/CONFIG_MODULE_SIG=y/# CONFIG_MODULE_SIG is not set/g' "$CFG" || true
-        sed -i 's/CONFIG_MODULE_SIG_ALL=y/# CONFIG_MODULE_SIG_ALL is not set/g' "$CFG" || true
-        sed -i 's/CONFIG_SYSTEM_TRUSTED_KEYS.*/CONFIG_SYSTEM_TRUSTED_KEYS=""/g' "$CFG" || true
-        sed -i 's/CONFIG_SYSTEM_REVOCATION_KEYS.*/CONFIG_SYSTEM_REVOCATION_KEYS=""/g' "$CFG" || true
+      
 
         echo "Done."
 

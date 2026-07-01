@@ -158,14 +158,17 @@ jobs:
         O=out \
         Image.gz \
         dtbs
-         - name: Create LLVM Symlinks
-         run: |
-         sudo ln -sf /usr/bin/llvm-ar-14 /usr/bin/llvm-ar
-         sudo ln -sf /usr/bin/llvm-nm-14 /usr/bin/llvm-nm
-         sudo ln -sf /usr/bin/llvm-strip-14 /usr/bin/llvm-strip
-         sudo ln -sf /usr/bin/llvm-objcopy-14 /usr/bin/llvm-objcopy
-         sudo ln -sf /usr/bin/llvm-objdump-14 /usr/bin/llvm-objdump
-         sudo ln -sf /usr/bin/ld.lld-14 /usr/bin/ld.lld
+         
+         - name: Check LLVM tools
+        run: |
+        which clang-14 || true
+         which ld.lld || true
+        which ld.lld-14 || true
+        which llvm-objdump || true
+        which llvm-objdump-14 || true
+
+        ls -l /usr/bin/llvm* || true
+        ls -l /usr/bin/ld.lld* || true
     - name: Verify Build
       run: |
         ls -lah kernel/out/arch/arm64/boot/

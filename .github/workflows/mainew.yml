@@ -128,6 +128,7 @@ jobs:
          KCFLAGS="-Wno-error -Wno-frame-larger-than -Wno-unused-but-set-variable -Wno-pointer-to-int-cast -Wno-unused-variable -Wno-strict-prototypes" \
          Image.gz \
          dtbs \
+         modules \ 
          -j$(nproc)
 
          ls -lh out/arch/arm64/boot/   

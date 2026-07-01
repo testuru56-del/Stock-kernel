@@ -1,288 +1,215 @@
-name: Poco M4 5G Pure Stock Kernel
+name: Build Stock Kernel - Poco M4 5G
 
 on:
   workflow_dispatch:
 
-env:
-  DEFCONFIG: light_defconfig
-  ARCH: arm64
-  SUBARCH: arm64
-
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 180
+    timeout-minutes: 120
 
     steps:
 
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Install Dependencies
+    - name: Install build tools
       run: |
-        sudo apt-get update
+        sudo apt-get update -qq
 
         sudo apt-get install -y \
+        git \
+        make \
         bc \
         bison \
-        build-essential \
-        ccache \
-        curl \
         flex \
-        gawk \
-        gcc \
-        g++ \
-        git \
-        gnupg \
-        gperf \
-        imagemagick \
-        libelf-dev \
-        liblz4-tool \
-        libncurses-dev \
-        libsdl1.2-dev \
-        libssl-dev \
-        libxml2 \
-        libxml2-utils \
-        lzop \
-        pngcrush \
-        rsync \
-        schedtool \
-        squashfs-tools \
-        unzip \
-        wget \
-        xsltproc \
+        cpio \
         zip \
-        zlib1g-dev \
+        unzip \
+        curl \
+        wget \
         python3 \
-        python-is-python3 \
-        clang-14 \
-        llvm-14 \
-        lld-14 \
+        libssl-dev \
+        libelf-dev \
+        clang \
+        lld \
+        llvm \
         gcc-aarch64-linux-gnu \
-        gcc-arm-linux-gnueabi
+        gcc-arm-linux-gnueabi \
+        binutils-aarch64-linux-gnu
 
-    - name: Clone Xiaomi Kernel
+    - name: Clone Xiaomi Kernel Source
       run: |
-        git clone \
-        --depth=1 \
+        git clone --depth=1 \
         -b light-u-oss \
         https://github.com/MiCode/Xiaomi_Kernel_OpenSource \
         kernel
 
+        du -sh kernel
+
     - name: Download Stock Boot
       run: |
-        wget \
-        -O boot.img \
+        wget -O boot.img \
         https://github.com/testuru56-del/Stock-kernel/releases/download/Boot/boot.img
-  
+
     - name: Download magiskboot
       run: |
-       wget -O magiskboot \
-       https://github.com/testuru56-del/Stock-kernel/releases/download/Boot/magiskboot
+        wget -O magiskboot \
+        https://github.com/testuru56-del/Stock-kernel/releases/download/Boot/magiskboot
 
-       chmod +x magiskboot
+        chmod +x magiskboot
 
-       file magiskboot
-
-       ./magiskboot --help || true
-    - name: Fix Xiaomi Source
+        ./magiskboot || true
+    - name: Set defconfig
+      working-directory: kernel
       run: |
-        cd kernel
+        DEFCONFIG="light_defconfig"
 
-        # MIHW missing in Xiaomi OSS
+        echo "========================================="
+        echo "Using DEFCONFIG: $DEFCONFIG"
+        echo "========================================="
+
+        echo "DEFCONFIG=$DEFCONFIG" >> $GITHUB_ENV
+
+    - name: Apply Compile Fixes
+      working-directory: kernel
+      run: |
+        CFG="arch/arm64/configs/$DEFCONFIG"
+
+        echo ">>> Fix 1: Missing mihw"
         mkdir -p drivers/mihw
-        touch drivers/mihw/Makefile
+        echo "" > drivers/mihw/Makefile
+        sed -i 's/obj-$(CONFIG_MI_HARDWARE) += mihw.o//g' drivers/Makefile || true
 
-        sed -i '/mihw/d' drivers/Makefile || true
-        sed -i '/mihw/d' drivers/Kconfig || true
+        echo ">>> Fix 2: Disable module signing (compile only)"
+        sed -i 's/CONFIG_MODULE_SIG=y/# CONFIG_MODULE_SIG is not set/g' "$CFG" || true
+        sed -i 's/CONFIG_MODULE_SIG_ALL=y/# CONFIG_MODULE_SIG_ALL is not set/g' "$CFG" || true
+        sed -i 's/CONFIG_SYSTEM_TRUSTED_KEYS.*/CONFIG_SYSTEM_TRUSTED_KEYS=""/g' "$CFG" || true
+        sed -i 's/CONFIG_SYSTEM_REVOCATION_KEYS.*/CONFIG_SYSTEM_REVOCATION_KEYS=""/g' "$CFG" || true
 
-        # Fix DTC yylloc
-        find scripts/dtc \
-        -type f \
-        \( -name "*.c" -o -name "*.l" \) \
-        -exec sed -i \
-        's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/g' {} \; || true
+        echo "Done."
 
-    - name: Configure Kernel
+    - name: Generate Config
+      working-directory: kernel
       run: |
-        cd kernel
+        export ARCH=arm64
 
+        make O=out ARCH=arm64 $DEFCONFIG
+
+        echo "Auto-answering new config questions..."
+        yes "" | make O=out ARCH=arm64 oldconfig
+        - name: Build Kernel
+         working-directory: kernel
+        run: |
         export ARCH=arm64
         export SUBARCH=arm64
 
-        make \
-        O=out \
-        light_defconfig
+        export CC=clang
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 
-        yes "" | make \
-        O=out \
-        oldconfig
-
-    - name: Build Kernel
-      run: |
-        cd kernel
-
-        export ARCH=arm64
-        export SUBARCH=arm64
-
-        export CC=clang-14
-        export LD=ld.lld-14
-
-        export LLVM=0
+        export LLVM=1
         export LLVM_IAS=1
 
-        export AR=llvm-ar-14
-        export NM=llvm-nm-14
-        export STRIP=llvm-strip-14
-        export OBJCOPY=llvm-objcopy-14
-        export OBJDUMP=llvm-objdump-14
+        export HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
+        export HOSTCXXFLAGS="-fcommon -Wno-deprecated-declarations"
+        export KBUILD_HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
 
-        export CROSS_COMPILE=aarch64-linux-gnu-
-        export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+        echo "Building kernel..."
 
-        export CROSS_COMPILE=aarch64-linux-gnu-
-        export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+        make O=out ARCH=arm64 \
+          CC=clang \
+          CROSS_COMPILE=aarch64-linux-gnu- \
+          CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+          LLVM=1 LLVM_IAS=1 \
+          KCFLAGS="-Wno-error \
+          -Wno-unused-but-set-variable \
+          -Wno-pointer-to-int-cast \
+          -Wno-unused-variable \
+          -Wno-strict-prototypes" \
+          -j$(nproc) \
+          Image.gz \
+          dtbs
 
-        export HOSTCFLAGS="-fcommon -Wno-error"
-        export HOSTCXXFLAGS="-fcommon -Wno-error"
+        echo "Kernel output:"
+        ls -lh out/arch/arm64/boot/
 
-        export KCFLAGS="-Wno-error \
-        -Wno-unused-but-set-variable \
-        -Wno-unused-variable \
-        -Wno-unused-function \
-        -Wno-format \
-        -Wno-address-of-packed-member"
+    - name: Upload Raw Kernel
+      uses: actions/upload-artifact@v4
+      with:
+        name: compiled-stock-kernel
+        path: |
+          kernel/out/arch/arm64/boot/Image*
+          kernel/out/arch/arm64/boot/dtb*
+        retention-days: 5
 
-        make \
-        -j$(nproc) \
-        O=out \
-        Image.gz \
-        dtbs
-         
-         - name: Check LLVM tools
-        run: |
-        which clang-14 || true
-         which ld.lld || true
-        which ld.lld-14 || true
-        which llvm-objdump || true
-        which llvm-objdump-14 || true
-
-        ls -l /usr/bin/llvm* || true
-        ls -l /usr/bin/ld.lld* || true
-    - name: Verify Build
+    - name: Verify Kernel
       run: |
-        ls -lah kernel/out/arch/arm64/boot/
-
         if [ ! -f kernel/out/arch/arm64/boot/Image.gz ]; then
-          echo "Kernel image not found!"
+          echo "ERROR: Image.gz not found!"
           exit 1
         fi
 
         file kernel/out/arch/arm64/boot/Image.gz
-
-    - name: Prepare Boot
+        ls -lh kernel/out/arch/arm64/boot/
+    - name: Repack Stock Boot
       run: |
         mkdir work
-
-        cp boot.img work/
-        cp kernel/out/arch/arm64/boot/Image.gz work/
-        cp magiskboot work/
-
-    - name: Unpack Boot
-      run: |
         cd work
 
-        ./magiskboot unpack boot.img
+        ../magiskboot unpack ../boot.img
 
-        echo "========== BOOT CONTENT =========="
-        ls -lah
-        echo "=================================="
+        cd ..
 
-    - name: Replace Kernel
-      run: |
-        cd work
+        KIMG=""
 
-        cp Image.gz kernel
+        for f in \
+        kernel/out/arch/arm64/boot/Image.gz-dtb \
+        kernel/out/arch/arm64/boot/Image-dtb \
+        kernel/out/arch/arm64/boot/Image.gz \
+        kernel/out/arch/arm64/boot/Image
+        do
+          if [ -f "$f" ]; then
+            KIMG="$f"
+            break
+          fi
+        done
 
-        sync
-
-        ls -lah
-
-    - name: Repack Boot
-      run: |
-        cd work
-
-        ./magiskboot repack boot.img
-
-        echo "========== OUTPUT =========="
-        ls -lah
-        echo "============================"
-
-        if [ ! -f new-boot.img ]; then
-          echo "Repack failed!"
+        if [ -z "$KIMG" ]; then
+          echo "ERROR: No kernel image found!"
           exit 1
         fi
 
-        mv new-boot.img ../stock_boot_test.img
-    - name: Save Build Information
-      run: |
-        mkdir -p artifacts
+        echo "Using: $KIMG"
 
-        cp kernel/out/.config artifacts/kernel.config || true
-        cp stock_boot_test.img artifacts/stock_boot_test.img || true
+        cp "$KIMG" work/kernel
 
-        if [ -f kernel/out/arch/arm64/boot/Image.gz ]; then
-          cp kernel/out/arch/arm64/boot/Image.gz artifacts/
+        if [ -f kernel/out/arch/arm64/boot/dtb.img ]; then
+          cp kernel/out/arch/arm64/boot/dtb.img work/dtb
+          echo "Replacing DTB"
         fi
 
-        if [ -f work/kernel ]; then
-          cp work/kernel artifacts/repacked_kernel
-        fi
+        cd work
 
-        uname -a > artifacts/system.txt
+        ../magiskboot repack ../boot.img
 
-        echo "Kernel Build Finished" > artifacts/build_status.txt
-        date >> artifacts/build_status.txt
+        mv new-boot.img ../patched_boot.img
 
-    - name: Compress Build Log
-      if: always()
+    - name: Verify Output
       run: |
-        mkdir -p logs
+        ls -lh
 
-        dmesg > logs/dmesg.txt || true
+        file patched_boot.img
 
-        find kernel -name "*.log" -exec cp {} logs/ \; || true
+        sha256sum patched_boot.img
 
-        tar -czf build_logs.tar.gz logs || true
-
-    - name: Upload Boot Image
+    - name: Upload Boot
       uses: actions/upload-artifact@v4
       with:
         name: Poco-M4-Stock-Boot
         path: |
-          stock_boot_test.img
-          artifacts/*
-          build_logs.tar.gz
-
-    - name: Upload Kernel Image
-      uses: actions/upload-artifact@v4
-      with:
-        name: Kernel-Image
-        path: |
-          kernel/out/arch/arm64/boot/Image.gz
+          patched_boot.img
           kernel/out/.config
-
-    - name: Build Summary
-      if: always()
-      run: |
-        echo "===================================="
-        echo "Build Completed"
-        echo "===================================="
-
-        if [ -f stock_boot_test.img ]; then
-          echo "Flashable boot image created successfully."
-        else
-          echo "Boot image was NOT created."
-        fi
-
-        ls -lh
+          kernel/out/arch/arm64/boot/Image*
+          kernel/out/arch/arm64/boot/dtb*
+        retention-days: 7

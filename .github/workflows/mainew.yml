@@ -85,7 +85,13 @@ jobs:
         working-directory: kernel
         run: |
           echo "Kernel config generated successfully."
-          ls -lh out/.config    
+          ls -lh out/.config
+
+      - name: Disable FocalTech Factory Test
+        working-directory: kernel
+        run: |
+         sed -i 's/obj-y += focaltech_test/# obj-y += focaltech_test/' \
+         drivers/input/touchscreen/mediatek/FT8722/Makefile || true    
       - name: Build kernel
         working-directory: kernel
         run: |

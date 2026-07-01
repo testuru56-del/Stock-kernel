@@ -81,20 +81,17 @@ jobs:
         echo "" > drivers/mihw/Makefile
         sed -i 's/obj-$(CONFIG_MI_HARDWARE) += mihw.o//g' drivers/Makefile || true
 
-      
-
         echo "Done."
-
     - name: Generate Config
-     working-directory: kernel         
-     run: |
-        export ARCH=arm64
-        export SUBARCH=arm64
+      working-directory: kernel         
+      run: |
+       export ARCH=arm64
+       export SUBARCH=arm64
 
-        make O=out light_defconfig
+       make O=out light_defconfig
 
-        yes "" | make O=out olddefconfig
-        - name: Build Kernel
+       yes "" | make O=out olddefconfig
+       - name: Build Kernel
          working-directory: kernel
         run: |
         export ARCH=arm64
@@ -113,7 +110,7 @@ jobs:
 
         echo "Building kernel..."
 
-        make O=out ARCH=arm64 \
+        make -C . O=out ARCH=arm64 \
         CC=clang \
         CROSS_COMPILE=aarch64-linux-gnu- \
         CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
